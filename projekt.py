@@ -2,24 +2,17 @@ import sys, time, math
 
 import numpy as np
 from matplotlib import pylab as plt
-from matplotlib import pyplot as pplt
 import matplotlib.patches as mpatches
 from scipy.signal import medfilt
-from skimage import io, data, color, img_as_ubyte
+from skimage import io
 from skimage.transform import resize
 from skimage.filters import threshold_yen, gaussian, median, threshold_li, threshold_isodata, threshold_otsu, threshold_mean
 from skimage.feature import canny
-from skimage.measure import find_contours, regionprops, moments
 from skimage.morphology import remove_small_objects, binary_opening, remove_small_holes, dilation, disk
-from skimage.transform import hough_ellipse, hough_circle, hough_circle_peaks
-from skimage.draw import ellipse_perimeter, circle_perimeter
 from skimage.color import rgb2hsv
-from skimage.morphology import closing, square
 
-from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
-from skimage.morphology import closing, square
-from skimage.color import label2rgb
+
 
 HEIGHT = 250
 WIDTH = 250
