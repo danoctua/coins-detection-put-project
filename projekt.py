@@ -82,14 +82,14 @@ def main(level='easy', img_number=3):
         # time.sleep(1)
 
         binary_smooth = medfilt(binary_cleaned, 3)
-        binary_smooth = dilation(canny(binary_smooth))
+        edges = dilation(canny(binary_smooth))
 
         # plt.imshow(1-binary_smooth, cmap='binary')
         # plt.title("Smooth")
         # plt.show()
         # time.sleep(1)
 
-        labels = label(binary_smooth)
+        labels = label(edges)
 
         im_rgb = im_resize(io.imread(f'examples/{level}/coin{n}.jpg'))
 
