@@ -100,7 +100,7 @@ def main(level='easy', img_number=3):
 
         im_rgb = im_resize(io.imread(f'examples/{level}/coin{n}.jpg'))
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(6, 6))
 
         ax.imshow(im_rgb)
 
@@ -132,6 +132,8 @@ def main(level='easy', img_number=3):
                     continue
                 ax.add_patch(rect)
                 ax.text(rect.get_x(), rect.get_y() - 5, txt, fontdict=font)
+                ax.set_xticks([])
+                ax.set_yticks([])
         plt.show()
 
 
