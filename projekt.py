@@ -80,7 +80,6 @@ def check_if_two(coin):
     rf = r // 3
     c = coin.shape[1] // 2
     coin_check_point = coin[rf:rf + rf, c - rf:c + rf, :]
-    print(coin_check_point.shape, r, rf, c)
     h, s, v = get_average_hsv(coin_check_point)
     if check_color(h, s, v) == "Golden":
         return True
@@ -172,6 +171,7 @@ def main(level='easy'):
 
         ax.imshow(im_rgb)
 
+        ls_silver = []
         for region in regionprops(labels):
 
             # th = 4 * math.pi * region.area / (region.perimeter**2)
@@ -193,13 +193,21 @@ def main(level='easy'):
                     five = check_if_five(im_rgb[minr:maxr, minc:maxc, :])
                     if five:
                         coin_center_color = "Pięć złotych"
+                    else:
+                        coin_center_color = "5 groszy"
+                        ls_silver.append((rect.get_height()+rect.get_width())/2)
                 elif coin_center_color == "Silver":
                     two = check_if_two(im_rgb[minr:maxr, minc:maxc, :])
                     if two:
                         coin_center_color = "Dwa złote"
+                    else:
+                        ls_silver.append((rect.get_height()+rect.get_width())/2)
                 ax.add_patch(rect)
                 ax.text(rect.get_x(), rect.get_y() - 2, coin_center_color, fontdict=font)
                 ax.axis('off')
+        plt.show()
+        # print(ls_silver)
+        # plt.hist(ls_silver)
         plt.show()
 
 
