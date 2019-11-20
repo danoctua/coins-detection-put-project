@@ -6,17 +6,29 @@ import matplotlib.patches as mpatches
 from scipy.signal import medfilt
 from skimage import io
 from skimage.transform import resize
-from skimage.filters import sobel, threshold_yen, gaussian, median, threshold_li, threshold_isodata, threshold_otsu, threshold_mean
+from skimage.filters import sobel, threshold_yen, gaussian, median, threshold_li, threshold_isodata, threshold_otsu, \
+    threshold_mean
 from skimage.feature import canny
-from skimage.morphology import watershed, remove_small_objects, binary_opening, remove_small_holes, dilation, disk, binary_closing, erosion
+from skimage.morphology import watershed, remove_small_objects, binary_opening, remove_small_holes, dilation, disk, \
+    binary_closing, erosion
 from skimage.color import rgb2hsv
 from skimage import exposure
 from scipy import ndimage as ndi
 
 from skimage.measure import label, regionprops
 
+# to resize image
 MAX_WIDTH = 500
 
+# ratios from https://www.nbp.pl/home.aspx?f=/banknoty_i_monety/monety_obiegowe/opisy.html
+R_10_20 = {"f": "10 gr", "s": "20 gr", 'r': 16.50 / 18.50}
+R_20_1 = {"f": "20 gr", "s": "1 zł", 'r': 18.50 / 23}
+R_10_1 = {"f": "10 gr", "s": "1 zł", 'r': 16.50 / 23}
+R_10_5 = {"f": "10 gr", "s": "5 gr", "r": 16.50 / 19.50}
+R_20_5 = {"f": "20 gr", "s": "5 gr", "r": 18.50 / 19.50}
+R_1_5 = {"f": "1 zł", "s": "5 gr", "r": 19.50 / 23}
+
+# font settings for label
 font = {'family': 'serif',
         'color': 'darkred',
         'weight': 'normal',
@@ -24,10 +36,12 @@ font = {'family': 'serif',
         }
 
 
+# resize image when upload
 def im_resize(img):
-    return resize(img, (int(img.shape[0]*(MAX_WIDTH/img.shape[1])), MAX_WIDTH))
+    return resize(img, (int(img.shape[0] * (MAX_WIDTH / img.shape[1])), MAX_WIDTH))
 
 
+#
 def get_contrasted(img, perc):
     # MIN = 180/255
     # MAX = 1
@@ -37,8 +51,8 @@ def get_contrasted(img, perc):
 
     # OR
     #
-    gamma_coef = 2
-    norm = img**gamma_coef
+    gamma_coef = 1
+    norm = img ** gamma_coef
 
     return norm
 
@@ -48,12 +62,12 @@ def check_color(h, s, v):
     if v < .1:
         print('Too dark')
     # detect coin's color
-    if .7 > s > .3 and 65/360 > h > 20/360:
+    if .7 > s > .3 and 65 / 360 > h > 20 / 360:
         txt = 'Golden'
     elif .3 >= s > 0:
         txt = 'Silver'
     else:
-        print(f"Unknown color, hue: {h*360}, saturation: {s}")
+        print(f"Unknown color, hue: {h * 360}, saturation: {s}")
     return txt
 
 
@@ -65,10 +79,10 @@ def get_average_hsv(segment):
 
 def check_if_five(coin):
     # -- diameter for golden kernel is 16, whole coin diameter is 24 (1/3)
-    r = coin.shape[0]//6
-    rf = r//2
-    c = coin.shape[1]//2
-    coin_check_point = coin[rf:rf+rf, c-rf:c+rf, :]
+    r = coin.shape[0] // 6
+    rf = r // 2
+    c = coin.shape[1] // 2
+    coin_check_point = coin[rf:rf + rf, c - rf:c + rf, :]
     h, s, v = get_average_hsv(coin_check_point)
     if check_color(h, s, v) == "Silver":
         return True
@@ -86,11 +100,77 @@ def check_if_two(coin):
     return False
 
 
+def get_diameter(rectangle):
+    return (rectangle.get_width() + rectangle.get_height()) / 2
+
+
+def check_silver_with_gold(coin, gold_ls):
+    gold_avr = sum([get_diameter(x) for x in gold_ls])/(len(gold_ls))
+    diameter = get_diameter(coin)
+    ls = [R_1_5, R_10_5, R_20_5]
+    diffs = [abs(diameter/gold_avr-x['r']) for x in ls]
+    print(diameter/gold_avr, ls)
+    idx_min = diffs.index(min(diffs))
+    return ls[idx_min]['f']
+
+
+def check_silver(coin_ls, gold_ls=[]):
+    # create matrix:
+    #                   1 if ratio is bigger or equal to 1
+    #                   else [0, 1] - ratio
+    m = np.full((len(coin_ls), len(coin_ls)), 1.)
+    dic = {}
+    # for each two coins add note about ratio according description above
+    for i1 in range(len(coin_ls)):
+        for i2 in range(len(coin_ls)):
+            if i1 == i2:
+                continue
+            # get diameter of rectangle which contains coin -> get coins average diameter
+            coin1_diameter = get_diameter(coin_ls[i1])
+            coin2_diameter = get_diameter(coin_ls[i2])
+            m[i1][i2] = coin1_diameter / coin2_diameter if coin1_diameter / coin2_diameter < 1 else 1
+    # print(m)
+    # list of ratio for each set of coins
+    r_ls = [R_10_1, R_10_20, R_20_1]
+    # until we're able to find the best ratio for each coin
+    while np.min(m) != 1:
+        mins = []
+        for r in r_ls:
+            temp_m = abs(m - r['r'])
+            # get minimal difference between expected and real ratio
+            mins.append([np.min(temp_m), np.where(temp_m == np.min(temp_m))])
+        # find overall minimal error (the most proper combination of coins)
+        f_half = [min_i[0] for min_i in mins]
+        m_min = min(f_half)
+        idx = f_half.index(m_min)
+        # if we have the same value multiple times:
+        #                           for each of them mark coin
+        for i in range(len(mins[idx][1][0])):
+            x, y = mins[idx][1][0][i], mins[idx][1][1][i]
+            # set as marked
+            m[x, y] = 1
+            if x not in dic:
+                dic[x] = r_ls[idx]["f"]
+            if y not in dic:
+                dic[y] = r_ls[idx]['s']
+    for i in range(len(coin_ls)):
+        # if there're coins which are not marked
+        if i not in dic:
+            # if we have no information about 5 gr diameter - no option to determine
+            #                                                 what this coin is
+            if len(gold_ls) == 0:
+                dic[i] = "Unknown"
+            # else try to find the closest matching with 5 gr ratio
+            else:
+                dic[i] = check_silver_with_gold(coin_ls[i], gold_ls)
+    return dic
+
+
 def main(level='easy'):
     for n, file in enumerate(os.listdir(f'examples/{level}')):
         if not any([extension in file.lower() for extension in ['jpg', 'jpeg', 'png']]):
             continue
-        # if n != 2:
+        # if n != 4:
         #     continue
         # -- read image from input and make edge detection to find ellipse next
         im = im_resize(io.imread(f'examples/{level}/{file}', as_gray=True))
@@ -153,7 +233,7 @@ def main(level='easy'):
 
         objects = remove_small_objects(objects, 500)
 
-        # plt.imshow(objects_cleaned, cmap='gray')
+        # plt.imshow(objects, cmap='gray')
         # plt.title("Objects")
         # plt.show()
         # time.sleep(1)
@@ -172,6 +252,7 @@ def main(level='easy'):
         ax.imshow(im_rgb)
 
         ls_silver = []
+        ls_5gr = []
         for region in regionprops(labels):
 
             # th = 4 * math.pi * region.area / (region.perimeter**2)
@@ -192,23 +273,31 @@ def main(level='easy'):
                 if coin_center_color == "Golden":
                     five = check_if_five(im_rgb[minr:maxr, minc:maxc, :])
                     if five:
-                        coin_center_color = "Pięć złotych"
+                        coin_center_color = "5 zł"
                     else:
-                        coin_center_color = "5 groszy"
-                        ls_silver.append((rect.get_height()+rect.get_width())/2)
+                        coin_center_color = "5 gr"
+                        ls_5gr.append(rect)
+                        # ls_silver.append((rect.get_height()+rect.get_width())/2)
                 elif coin_center_color == "Silver":
                     two = check_if_two(im_rgb[minr:maxr, minc:maxc, :])
                     if two:
-                        coin_center_color = "Dwa złote"
+                        coin_center_color = "2 zł"
                     else:
-                        ls_silver.append((rect.get_height()+rect.get_width())/2)
+                        ls_silver.append(rect)
+                        continue
                 ax.add_patch(rect)
-                ax.text(rect.get_x(), rect.get_y() - 2, coin_center_color, fontdict=font)
+                ax.text(rect.get_x(), rect.get_y() - 3, coin_center_color, fontdict=font)
                 ax.axis('off')
-        plt.show()
+        if len(ls_silver) > 0:
+            names = check_silver(ls_silver, ls_5gr)
+            for i in range(len(ls_silver)):
+                rect = ls_silver[i]
+                ax.add_patch(rect)
+                ax.text(rect.get_x(), rect.get_y() - 3, names[i], fontdict=font)
         # print(ls_silver)
-        # plt.hist(ls_silver)
         plt.show()
+        # plt.hist([get_diameter(rect) for rect in ls_silver])
+        # plt.show()
 
 
 def mainloop():
