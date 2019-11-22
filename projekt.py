@@ -20,13 +20,28 @@ from skimage.measure import label, regionprops
 # to resize image
 MAX_WIDTH = 500
 
+D1z = 23
+D2z = 21.50
+D5z = 24
+D5 = 19.50
+D10 = 16.50
+D20 = 18.50
+
 # ratios from https://www.nbp.pl/home.aspx?f=/banknoty_i_monety/monety_obiegowe/opisy.html
-R_10_20 = {"f": "10 gr", "s": "20 gr", 'r': 16.50 / 18.50}
-R_20_1 = {"f": "20 gr", "s": "1 zł", 'r': 18.50 / 23}
-R_10_1 = {"f": "10 gr", "s": "1 zł", 'r': 16.50 / 23}
-R_10_5 = {"f": "10 gr", "s": "5 gr", "r": 16.50 / 19.50}
-R_20_5 = {"f": "20 gr", "s": "5 gr", "r": 18.50 / 19.50}
-R_1_5 = {"f": "1 zł", "s": "5 gr", "r": 19.50 / 23}
+R_10_20 = {"f": "10 gr", "s": "20 gr", 'r': D10 / D20}
+R_20_1z = {"f": "20 gr", "s": "1 zł", 'r': D20 / D1z}
+R_10_1z = {"f": "10 gr", "s": "1 zł", 'r': D10 / D1z}
+R_10_5 = {"f": "10 gr", "s": "5 gr", "r": D10 / D5}
+R_20_5 = {"f": "20 gr", "s": "5 gr", "r": D20 / D5}
+R_1z_5 = {"f": "1 zł", "s": "5 gr", "r": D1z / D5}
+R_10_2z = {"f": "10 gr", "s": "2 zł", "r": D10 / D2z}
+R_20_2z = {"f": "10 gr", "s": "2 zł", "r": D20 / D2z}
+R_1z_2z = {"f": "10 gr", "s": "2 zł", "r": D1z / D2z}
+R_10_5z = {"f": "10 gr", "s": "5 zł", "r": D10 / D5z}
+R_20_5z = {"f": "10 gr", "s": "5 zł", "r": D20 / D5z}
+R_1z_5z = {"f": "10 gr", "s": "5 zł", "r": D1z / D5z}
+
+
 
 # font settings for label
 font = {'family': 'serif',
@@ -51,7 +66,7 @@ def get_contrasted(img, perc):
 
     # OR
     #
-    gamma_coef = 1
+    gamma_coef = 1.5
     norm = img ** gamma_coef
 
     return norm
@@ -104,17 +119,25 @@ def get_diameter(rectangle):
     return (rectangle.get_width() + rectangle.get_height()) / 2
 
 
-def check_silver_with_gold(coin, gold_ls):
-    gold_avr = sum([get_diameter(x) for x in gold_ls])/(len(gold_ls))
+def check_silver_with_another(coin, gold_ls, two_ls, five_ls):
+    if isinstance(gold_ls, list) and len(gold_ls) > 0:
+        avr = sum([get_diameter(x) for x in gold_ls]) / (len(gold_ls))
+        ratios = [R_1z_5, R_10_5, R_20_5]
+    elif isinstance(two_ls, list) and len(two_ls) > 0:
+        avr = sum([get_diameter(x) for x in two_ls]) / (len(two_ls))
+        ratios = [R_1z_2z, R_10_2z, R_20_2z]
+    elif isinstance(five_ls, list) and len(five_ls) > 0:
+        avr = sum([get_diameter(x) for x in five_ls]) / (len(five_ls))
+        ratios = [R_1z_2z, R_10_2z, R_20_2z]
+    else:
+        return None
     diameter = get_diameter(coin)
-    ls = [R_1_5, R_10_5, R_20_5]
-    diffs = [abs(diameter/gold_avr-x['r']) for x in ls]
-    print(diameter/gold_avr, ls)
+    diffs = [abs(diameter / avr - x['r']) for x in ratios]
     idx_min = diffs.index(min(diffs))
-    return ls[idx_min]['f']
+    return ratios[idx_min]['f']
 
 
-def check_silver(coin_ls, gold_ls=[]):
+def check_silver(coin_ls, gold_ls=None, two_ls=None, five_ls=None):
     # create matrix:
     #                   1 if ratio is bigger or equal to 1
     #                   else [0, 1] - ratio
@@ -131,7 +154,7 @@ def check_silver(coin_ls, gold_ls=[]):
             m[i1][i2] = coin1_diameter / coin2_diameter if coin1_diameter / coin2_diameter < 1 else 1
     # print(m)
     # list of ratio for each set of coins
-    r_ls = [R_10_1, R_10_20, R_20_1]
+    r_ls = [R_10_1z, R_10_20, R_20_1z]
     # until we're able to find the best ratio for each coin
     while np.min(m) != 1:
         mins = []
@@ -158,11 +181,12 @@ def check_silver(coin_ls, gold_ls=[]):
         if i not in dic:
             # if we have no information about 5 gr diameter - no option to determine
             #                                                 what this coin is
-            if len(gold_ls) == 0:
+            if not gold_ls:
                 dic[i] = "Unknown"
             # else try to find the closest matching with 5 gr ratio
             else:
-                dic[i] = check_silver_with_gold(coin_ls[i], gold_ls)
+                res = check_silver_with_another(coin_ls[i], gold_ls, two_ls, five_ls)
+                dic[i] = res if res else "unknown"
     return dic
 
 
@@ -180,17 +204,16 @@ def main(level='easy'):
         # plt.show()
         # time.sleep(1)
 
-        # im = median(im, disk(3))
-
         # -- add contrast
         im = get_contrasted(im, 15)
+
+        # im = gaussian(im, sigma=1.5)
+        # im = median(im, disk(2))
 
         # plt.imshow(im, cmap='gray')
         # plt.title("contrasted")
         # plt.show()
         # time.sleep(1)
-
-        # im = median(im, disk(2))
         #
         # thresh = threshold_yen(im)
         # binary = im > thresh
@@ -231,7 +254,7 @@ def main(level='easy'):
         # plt.show()
         # time.sleep(1)
 
-        objects = remove_small_objects(objects, 500)
+        objects = remove_small_objects(objects, 400)
 
         # plt.imshow(objects, cmap='gray')
         # plt.title("Objects")
@@ -253,6 +276,8 @@ def main(level='easy'):
 
         ls_silver = []
         ls_5gr = []
+        ls_2 = []
+        ls_5 = []
         for region in regionprops(labels):
 
             # th = 4 * math.pi * region.area / (region.perimeter**2)
@@ -274,6 +299,7 @@ def main(level='easy'):
                     five = check_if_five(im_rgb[minr:maxr, minc:maxc, :])
                     if five:
                         coin_center_color = "5 zł"
+                        ls_5.append(rect)
                     else:
                         coin_center_color = "5 gr"
                         ls_5gr.append(rect)
@@ -282,6 +308,7 @@ def main(level='easy'):
                     two = check_if_two(im_rgb[minr:maxr, minc:maxc, :])
                     if two:
                         coin_center_color = "2 zł"
+                        ls_2.append(rect)
                     else:
                         ls_silver.append(rect)
                         continue
@@ -289,7 +316,7 @@ def main(level='easy'):
                 ax.text(rect.get_x(), rect.get_y() - 3, coin_center_color, fontdict=font)
                 ax.axis('off')
         if len(ls_silver) > 0:
-            names = check_silver(ls_silver, ls_5gr)
+            names = check_silver(ls_silver, ls_5gr, ls_2, ls_5)
             for i in range(len(ls_silver)):
                 rect = ls_silver[i]
                 ax.add_patch(rect)
