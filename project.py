@@ -152,7 +152,6 @@ def check_silver(coin_ls, gold_ls=None, two_ls=None, five_ls=None):
             coin1_diameter = get_diameter(coin_ls[i1])
             coin2_diameter = get_diameter(coin_ls[i2])
             m[i1][i2] = coin1_diameter / coin2_diameter if coin1_diameter / coin2_diameter < 1 else 1
-    # print(m)
     # list of ratio for each set of coins
     r_ls = [R_10_1z, R_10_20, R_20_1z]
     # until we're able to find the best ratio for each coin
@@ -194,81 +193,23 @@ def main(level='easy'):
     for n, file in enumerate(os.listdir(f'examples/{level}')):
         if not any([extension in file.lower() for extension in ['jpg', 'jpeg', 'png']]):
             continue
-        # if n != 4:
-        #     continue
         # -- read image from input and make edge detection to find ellipse next
         im = im_resize(io.imread(f'examples/{level}/{file}', as_gray=True))
 
-        # plt.imshow(im, cmap='gray')
-        # plt.title("image")
-        # plt.show()
-        # time.sleep(1)
-
         # -- add contrast
         im = get_contrasted(im, 15)
-
-        # im = gaussian(im, sigma=1.5)
-        # im = median(im, disk(2))
-
-        # plt.imshow(im, cmap='gray')
-        # plt.title("contrasted")
-        # plt.show()
-        # time.sleep(1)
-        #
-        # thresh = threshold_yen(im)
-        # binary = im > thresh
-        #
-        # plt.imshow(binary, cmap='gray')
-        # plt.title("Afterthrashed")
-        # plt.show()
-        # time.sleep(1)
-        #
-        # binary_cleaned = remove_small_holes(binary, 100)
-        # binary_cleaned = remove_small_objects(binary_cleaned, 100)
-        #
-        # plt.imshow(1-binary_cleaned, cmap='binary')
-        # plt.title("Cleaned")
-        # plt.show()
-        # time.sleep(1)
-        #
-        # binary_smooth = medfilt(binary_cleaned, 3)
-        # edges = dilation(canny(binary_smooth))
-        #
-        # plt.imshow(edges, cmap='gray')
-        # plt.title("Smooth")
-        # plt.show()
-        # time.sleep(1)
-
+     
         im = binary_closing(canny(im))
 
-        # plt.imshow(im, cmap='gray')
-        # plt.title("Canny")
-        # plt.show()
-        # time.sleep(1)
 
         objects = binary_closing(ndi.binary_fill_holes(im))
-        # objects = remove_small_holes(objects, 500)
-
-        # plt.imshow(objects, cmap='gray')
-        # plt.title("Objects small holes")
-        # plt.show()
-        # time.sleep(1)
 
         objects = remove_small_objects(objects, 400)
 
-        # plt.imshow(objects, cmap='gray')
-        # plt.title("Objects")
-        # plt.show()
-        # time.sleep(1)
-
+        # get labels from the objects on modified 2d array
         labels = label(objects)
 
         im_rgb = im_resize(io.imread(f'examples/{level}/{file}'))
-
-        # plt.imshow(im_rgb)
-        # plt.title("img")
-        # plt.show()
-        # time.sleep(1)
 
         fig, ax = plt.subplots(figsize=(6, 6))
 
@@ -280,9 +221,6 @@ def main(level='easy'):
         ls_5 = []
         for region in regionprops(labels):
 
-            # th = 4 * math.pi * region.area / (region.perimeter**2)
-            # print(th, region.area, region.perimeter)
-            # take regions with large enough areas
             if region.area >= 40:
                 # draw rectangle around segmented coins
                 minr, minc, maxr, maxc = region.bbox
@@ -303,7 +241,6 @@ def main(level='easy'):
                     else:
                         coin_center_color = "5 gr"
                         ls_5gr.append(rect)
-                        # ls_silver.append((rect.get_height()+rect.get_width())/2)
                 elif coin_center_color == "Silver":
                     two = check_if_two(im_rgb[minr:maxr, minc:maxc, :])
                     if two:
@@ -321,10 +258,7 @@ def main(level='easy'):
                 rect = ls_silver[i]
                 ax.add_patch(rect)
                 ax.text(rect.get_x(), rect.get_y() - 3, names[i], fontdict=font)
-        # print(ls_silver)
         plt.show()
-        # plt.hist([get_diameter(rect) for rect in ls_silver])
-        # plt.show()
 
 
 def mainloop():
